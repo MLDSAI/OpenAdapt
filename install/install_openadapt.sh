@@ -1,6 +1,5 @@
 #!/bin/bash
 set -e
-set -x
 
 ################################    PARAMETERS   ################################
 
@@ -115,8 +114,34 @@ if ! CheckCMDExists "git"; then
     BrewInstall "git"
 fi
 
+# for scrubbing
 if ! CheckCMDExists "tesseract"; then
     BrewInstall "tesseract"
+fi
+
+# for SVG mixin
+if ! CheckCMDExists "vtracer"; then
+    if ! CheckCMDExists "cargo"; then
+       brew install rust
+       if ! CheckCMDExists "cargo"; then
+            echo "Failed to download rust"
+            Cleanup
+            exit 1
+        fi
+    fi
+    RunAndCheck "cargo install vtracer" "install vtracer"
+fi
+
+# for SVG mixin test
+if ! CheckCMDExists "cairosvg"; then
+    cpu=$(sysctl machdep.cpu.brand_string)
+    if [[ $cpu == *"Intel"* ]]; then
+        RunAndCheck "brew install cairo" "install cairo for Apple Intel chip"
+    else
+        RunAndCheck "arch -arm64 brew install cairo" "install cairo for Apple Silicon"
+    fi
+    # add new path to profile
+    echo "export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib" >> ~/.zprofile
 fi
 
 CheckPythonExists
