@@ -1,3 +1,4 @@
+import sys
 import time
 
 from loguru import logger
@@ -11,6 +12,7 @@ from openadapt import common, config, crud, models, utils
 MAX_PROCESS_ITERS = 1
 
 
+@logger.catch(reraise=True, onerror=lambda _: sys.exit(1))
 def get_events(
     recording,
     process=True,
@@ -25,6 +27,8 @@ def get_events(
     logger.debug(f"raw_action_event_dicts=\n{pformat(raw_action_event_dicts)}")
 
     num_action_events = len(action_events)
+    if num_action_events == 0:
+        raise ValueError("No action events found.")
     num_window_events = len(window_events)
     num_screenshots = len(screenshots)
 
