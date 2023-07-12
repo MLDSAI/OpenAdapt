@@ -1,4 +1,6 @@
-"""Utilities for playing back ActionEvents"""
+"""Utilities for playing back ActionEvents."""
+
+from typing import Any
 
 from loguru import logger
 from pynput import mouse
@@ -6,7 +8,16 @@ from pynput import mouse
 from openadapt.common import KEY_EVENTS, MOUSE_EVENTS
 
 
-def play_mouse_event(event, mouse_controller):
+def play_mouse_event(event: Any, mouse_controller: Any) -> None:
+    """Play a mouse event.
+
+    Args:
+        event (ActionEvent): The mouse event to be played.
+        mouse_controller (pynput.mouse.Controller): The mouse controller.
+
+    Raises:
+        Exception: If the event name is not handled.
+    """
     name = event.name
     assert name in MOUSE_EVENTS, event
     x = event.mouse_x
@@ -35,16 +46,25 @@ def play_mouse_event(event, mouse_controller):
     elif event.name == "scroll":
         mouse_controller.scroll(dx, dy)
     else:
-        raise Exception(f"unhandled {event.name=}")
+        raise Exception(f"Unhandled event name: {event.name}")
 
 
-def play_key_event(event, keyboard_controller, canonical=True):
+def play_key_event(
+    event: Any, keyboard_controller: Any, canonical: bool = True
+) -> None:
+    """Play a key event.
+
+    Args:
+        event (ActionEvent): The key event to be played.
+        keyboard_controller (pynput.keyboard.Controller): The keyboard controller.
+        canonical (bool): Whether to use the canonical key or the key.
+
+    Raises:
+        Exception: If the event name is not handled.
+    """
     assert event.name in KEY_EVENTS, event
 
-    key = (
-        event.canonical_key if canonical and event.canonical_key else
-        event.key
-    )
+    key = event.canonical_key if canonical and event.canonical_key else event.key
 
     if event.name == "press":
         keyboard_controller.press(key)
@@ -53,10 +73,22 @@ def play_key_event(event, keyboard_controller, canonical=True):
     elif event.name == "type":
         keyboard_controller.type(key)
     else:
-        raise Exception(f"unhandled {event.name=}")
+        raise Exception(f"Unhandled event name: {event.name}")
 
 
-def play_action_event(event, mouse_controller, keyboard_controller):
+def play_action_event(
+    event: Any, mouse_controller: Any, keyboard_controller: Any
+) -> None:
+    """Play an action event.
+
+    Args:
+        event (ActionEvent): The action event to be played.
+        mouse_controller (pynput.mouse.Controller): The mouse controller.
+        keyboard_controller (pynput.keyboard.Controller): The keyboard controller.
+
+    Raises:
+        Exception: If the event name is not handled.
+    """
     # currently we use children to replay type events
     if event.children and event.name in KEY_EVENTS:
         for child in event.children:
@@ -68,4 +100,4 @@ def play_action_event(event, mouse_controller, keyboard_controller):
         elif event.name in KEY_EVENTS:
             play_key_event(event, keyboard_controller)
         else:
-            raise Exception(f"unhandled {event.name=}")
+            raise Exception(f"Unhandled event name: {event.name}")

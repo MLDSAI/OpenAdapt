@@ -1,16 +1,13 @@
-import collections
-import sys
-from loguru import logger
-import pywinauto
-from pywinauto import Desktop
-import time
 from pprint import pprint
 import pickle
+import time
+
+from loguru import logger
+import pywinauto
 
 
 def get_active_window_state() -> dict:
-    """
-    Get the state of the active window.
+    """Get the state of the active window.
 
     Returns:
         dict: A dictionary containing the state of the active window.
@@ -51,9 +48,10 @@ def get_active_window_state() -> dict:
     return state
 
 
-def get_active_window_meta(active_window) -> dict:
-    """
-    Get the meta information of the active window.
+def get_active_window_meta(
+    active_window: pywinauto.application.WindowSpecification,
+) -> dict:
+    """Get the meta information of the active window.
 
     Args:
         active_window: The active window object.
@@ -69,9 +67,8 @@ def get_active_window_meta(active_window) -> dict:
     return result
 
 
-def get_active_element_state(x: int, y: int):
-    """
-    Get the state of the active element at the given coordinates.
+def get_active_element_state(x: int, y: int) -> dict:
+    """Get the state of the active element at the given coordinates.
 
     Args:
         x (int): The x-coordinate.
@@ -87,28 +84,29 @@ def get_active_element_state(x: int, y: int):
     return properties
 
 
-def get_active_window(depth=10, max_width=10, filename=None) -> Desktop:
-    """
-    Get the active window object.
+def get_active_window(
+    depth: int = 10, max_width: int = 10, filename: str = None
+) -> pywinauto.application.WindowSpecification:
+    """Get the active window object.
 
     Returns:
-        Desktop: The active window object.
+        pywinauto.application.WindowSpecification: The active window object.
     """
     app = pywinauto.application.Application(backend="uia").connect(active_only=True)
     window = app.active()
     return window
 
 
-def get_element_properties(element):
-    """
-    Recursively retrieves the properties of each element and its children.
+def get_element_properties(element: pywinauto.application.WindowSpecification) -> dict:
+    """Recursively retrieves the properties of each element and its children.
 
     Args:
         element: An instance of a custom element class
                  that has the `.get_properties()` and `.children()` methods.
 
     Returns:
-        A nested dictionary containing the properties of each element and its children.
+        dict: A nested dictionary containing the properties of each element
+          and its children.
         The dictionary includes a "children" key for each element,
         which holds the properties of its children.
 
@@ -120,7 +118,6 @@ def get_element_properties(element):
                   'children': [{'prop1': 'child_value1', 'prop2': 'child_value2',
                   'children': []}]}
     """
-
     properties = element.get_properties()
     children = element.children()
 
@@ -133,7 +130,15 @@ def get_element_properties(element):
     return properties
 
 
-def dictify_rect(rect):
+def dictify_rect(rect: pywinauto.win32structures.RECT) -> dict:
+    """Convert a rectangle object to a dictionary.
+
+    Args:
+        rect: The rectangle object.
+
+    Returns:
+        dict: A dictionary representation of the rectangle.
+    """
     rect_dict = {
         "left": rect.left,
         "top": rect.top,
@@ -143,14 +148,11 @@ def dictify_rect(rect):
     return rect_dict
 
 
-def main():
-    """
-    Test function for retrieving and inspecting the state of the active window.
+def main() -> None:
+    """Test function for retrieving and inspecting the state of the active window.
 
     This function is primarily used for testing and debugging purposes.
     """
-    import time
-
     time.sleep(1)
 
     state = get_active_window_state()
@@ -158,7 +160,7 @@ def main():
     pickle.dumps(state)
     import ipdb
 
-    ipdb.set_trace()
+    ipdb.set_trace()  # noqa: E702
 
 
 if __name__ == "__main__":
