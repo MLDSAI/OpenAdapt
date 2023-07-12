@@ -1,10 +1,13 @@
 import signal
-from nicegui import ui
+from datetime import datetime
 from subprocess import Popen
+
+from nicegui import ui
+
 from openadapt.app.objects.local_file_picker import LocalFilePicker
 from openadapt.app.util import set_dark, sync_switch
 
-PROC = None
+record_proc = None
 
 
 def settings(dark_mode):
@@ -37,8 +40,27 @@ def select_import(f):
     import_dialog.open()
 
 
+def stop_record():
+    global record_proc
+    if record_proc is not None:
+        record_proc.send_signal(signal.SIGINT)
+
+        # wait for process to terminate
+        record_proc.wait()
+        record_proc = None
+
+
+def quick_record():
+    global record_proc
+    now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    record_proc = Popen(
+        f"python -m openadapt.record '{now}'",
+        shell=True,
+    )
+
+
 def recording_prompt(options, record_button):
-    if PROC is None:
+    if record_proc is None:
         with ui.dialog() as dialog, ui.card():
             ui.label("Enter a name for the recording: ")
             ui.input(
@@ -56,16 +78,16 @@ def recording_prompt(options, record_button):
             dialog.open()
 
     def terminate():
-        global PROC
-        PROC.send_signal(signal.SIGINT)
+        global record_proc
+        record_proc.send_signal(signal.SIGINT)
 
         # wait for process to terminate
-        PROC.wait()
+        record_proc.wait()
         ui.notify("Stopped recording")
         record_button._props["name"] = "radio_button_checked"
         record_button.on("click", lambda: recording_prompt(options, record_button))
 
-        PROC = None
+        record_proc = None
 
     def begin():
         name = result.text.__getattribute__("value")
@@ -83,6 +105,6 @@ def recording_prompt(options, record_button):
         return PROC
 
     def on_record():
-        global PROC
+        global record_proc
         dialog.close()
-        PROC = begin()
+        record_proc = begin()

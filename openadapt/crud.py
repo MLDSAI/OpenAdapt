@@ -23,6 +23,7 @@ memory_stats = []
 
 
 
+
 def _insert(event_data, table, buffer=None):
     """Insert using Core API for improved performance (no rows are returned)"""
 
@@ -136,6 +137,15 @@ def insert_recording(recording_data):
     db.commit()
     db.refresh(db_obj)
     return db_obj
+
+
+def get_all_recordings():
+    return (
+        db
+        .query(Recording)
+        .order_by(sa.desc(Recording.timestamp))
+        .all()
+    )
 
 
 def get_latest_recording():
