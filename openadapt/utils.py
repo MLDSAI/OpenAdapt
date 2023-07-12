@@ -21,6 +21,23 @@ from openadapt import common, config
 EMPTY = (None, [], {}, "")
 
 
+def get_now_dt_str(dt_format=config.DT_FMT):
+    """
+    Get the current date and time as a formatted string.
+    Args:
+        dt_format (str): The format to use for the date and time string.
+    Returns:
+        str: The current date and time formatted as a string.
+    """
+    # Get the current date and time
+    now = datetime.datetime.now()
+
+    # Format the date and time according to the specified format
+    dt_str = now.strftime(dt_format)
+
+    return dt_str
+
+
 def configure_logging(logger, log_level):
     # TODO: redact log messages (https://github.com/Delgan/loguru/issues/17#issuecomment-717526130)
     log_level_override = os.getenv("LOG_LEVEL")
