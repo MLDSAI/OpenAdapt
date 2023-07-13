@@ -141,8 +141,10 @@ def process_events(
     prev_event = None
     prev_screen_event = None
     prev_window_event = None
+    prev_browser_event = None
     prev_saved_screen_timestamp = 0
     prev_saved_window_timestamp = 0
+    prev_saved_browser_timestamp = 0
     while not terminate_event.is_set() or not event_q.empty():
         event = event_q.get()
         logger.trace(f"{event=}")
@@ -153,6 +155,8 @@ def process_events(
             prev_screen_event = event
         elif event.type == "window":
             prev_window_event = event
+        elif event.type == "browser":
+            prev_browser_event = event
         elif event.type == "action":
             if prev_screen_event is None:
                 logger.warning("discarding action that came before screen")
@@ -162,6 +166,7 @@ def process_events(
                 continue
             event.data["screenshot_timestamp"] = prev_screen_event.timestamp
             event.data["window_event_timestamp"] = prev_window_event.timestamp
+            event.data["browser_event_timestamp"] = prev_browser_event.timestamp
             process_event(
                 event,
                 action_write_q,
@@ -187,6 +192,15 @@ def process_events(
                     perf_q,
                 )
                 prev_saved_window_timestamp = prev_window_event.timestamp
+            if prev_saved_browser_timestamp < prev_browser_event.timestamp:
+                process_event(
+                    prev_browser_event,
+                    browser_write_q,
+                    write_browser_event,
+                    recording_timestamp,
+                    perf_q,
+                )
+                prev_saved_browser_timestamp = prev_browser_event.timestamp
         else:
             raise Exception(f"unhandled {event.type=}")
         del prev_event
@@ -251,6 +265,25 @@ def write_window_event(
 
     assert event.type == "window", event
     crud.insert_window_event(recording_timestamp, event.timestamp, event.data)
+    perf_q.put((event.type, event.timestamp, utils.get_timestamp()))
+
+
+def write_browser_event(
+    recording_timestamp: float,
+    event: Event,
+    perf_q: sq.SynchronizedQueue,
+):
+    """
+    Write a browser event to the database and update the performance queue.
+
+    Args:
+        recording_timestamp: The timestamp of the recording.
+        event: A browser event to be written.
+        perf_q: A queue for collecting performance data.
+    """
+
+    assert event.type == "browser", event
+    crud.insert_browser_event(recording_timestamp, event.timestamp, event.data)
     perf_q.put((event.type, event.timestamp, utils.get_timestamp()))
 
 
@@ -497,6 +530,37 @@ def read_window_events(
         prev_window_data = window_data
 
 
+def read_browser_events(
+    event_q: queue.Queue,
+    terminate_event: multiprocessing.Event,
+    recording_timestamp: float,
+) -> None:
+    """
+    Read browser events and add them to the event queue.
+
+    Args:
+        event_q: A queue for adding window events.
+        terminate_event: An event to signal the termination of the process.
+        recording_timestamp: The timestamp of the recording.
+    """
+    utils.configure_logging(logger, LOG_LEVEL)
+    utils.set_start_time(recording_timestamp)
+    logger.info(f"starting")
+
+    while not terminate_event.is_set():
+      #  browser_data = get_message()
+
+        # logger.info(f"{browser_data=}")
+        logger.debug("queuing browser event for writing")
+        event_q.put(
+            Event(
+                utils.get_timestamp(),
+                "browser",
+                browser_data,
+            )
+        )
+
+
 @trace(logger)
 def performance_stats_writer(
     perf_q: sq.SynchronizedQueue,
@@ -699,6 +763,7 @@ def record(
     screen_write_q = sq.SynchronizedQueue()
     action_write_q = sq.SynchronizedQueue()
     window_write_q = sq.SynchronizedQueue()
+    browser_write_q = sq.SynchronizedQueue()
     # TODO: save write times to DB; display performance plot in visualize.py
     perf_q = sq.SynchronizedQueue()
     terminate_event = multiprocessing.Event()
@@ -706,12 +771,19 @@ def record(
     term_pipe_parent_window, term_pipe_child_window = multiprocessing.Pipe()
     term_pipe_parent_screen, term_pipe_child_screen = multiprocessing.Pipe()
     term_pipe_parent_action, term_pipe_child_action = multiprocessing.Pipe()
+    term_pipe_parent_browser, term_pipe_child_browser = multiprocessing.Pipe()
     
     window_event_reader = threading.Thread(
         target=read_window_events,
         args=(event_q, terminate_event, recording_timestamp),
     )
     window_event_reader.start()
+
+    browser_event_reader = threading.Thread(
+        target=read_browser_events,
+        args=(event_q, terminate_event, recording_timestamp),
+    )
+    browser_event_reader.start()
 
     screen_event_reader = threading.Thread(
         target=read_screen_events,
@@ -738,6 +810,7 @@ def record(
             screen_write_q,
             action_write_q,
             window_write_q,
+            browser_write_q,
             perf_q,
             recording_timestamp,
             terminate_event,
@@ -758,6 +831,20 @@ def record(
         ),
     )
     screen_event_writer.start()
+
+    browser_event_writer = multiprocessing.Process(
+        target=write_events,
+        args=(
+            "browser",
+            write_browser_event,
+            browser_event_q,
+            perf_q,
+            recording_timestamp,
+            terminate_event,
+            term_pipe_child_action
+        ),
+    )
+    browser_event_writer.start()
 
     action_event_writer = multiprocessing.Process(
         target=write_events,
@@ -826,16 +913,19 @@ def record(
     term_pipe_parent_window.send(window_write_q.qsize())
     term_pipe_parent_action.send(action_write_q.qsize())
     term_pipe_parent_screen.send(screen_write_q.qsize())
+    term_pipe_parent_browser.send(browser_write_q.qsize())
 
     logger.info(f"joining...")
     keyboard_event_reader.join()
     mouse_event_reader.join()
     screen_event_reader.join()
     window_event_reader.join()
+    browser_event_reader.join()
     event_processor.join()
     screen_event_writer.join()
     action_event_writer.join()
     window_event_writer.join()
+    browser_event_writer.join()
     terminate_perf_event.set()
 
     if PLOT_PERFORMANCE:
